@@ -52,32 +52,22 @@ def main():
         input()
         return 1
 
-    # Launch scrcpy WITHOUT turning screen off (we'll do it manually)
+    # Launch scrcpy with built-in screen-off feature
     print("\nLaunching scrcpy...")
-    print("Physical screen will turn off to prevent phantom touches.")
+    print("Physical screen will turn off automatically to prevent phantom touches.")
     print("You'll control via PC screen only.\n")
 
-    # Start scrcpy in background
+    # Start scrcpy with built-in screen management
     scrcpy_proc = subprocess.Popen([
         SCRCPY_PATH,
+        "--turn-screen-off",  # Turn off physical screen (scrcpy's built-in feature)
         "--stay-awake",
-        "--power-off-on-close"  # Turn screen back on when closing
+        "--power-off-on-close",  # Turn screen back on when closing
+        "--no-audio"  # Disable audio capture (requires unlocked screen on Android 11)
     ])
 
-    # Give scrcpy time to connect
-    time.sleep(3)
-
-    # Now turn the PHYSICAL screen off
-    print("Turning physical screen off...")
-    subprocess.run([ADB_PATH, "shell", "input", "keyevent", "KEYCODE_POWER"], capture_output=True)
-    time.sleep(0.5)
-
-    # Start monitoring to keep it off
-    monitor_thread = threading.Thread(target=keep_screen_off, daemon=True)
-    monitor_thread.start()
-
-    print("✓ Ready! Control your phone via PC screen.")
-    print("Physical screen is OFF to prevent phantom touches.\n")
+    print("✓ scrcpy launched! Physical screen will turn off automatically.")
+    print("Control your phone via the PC window.\n")
 
     # Wait for scrcpy to close
     try:

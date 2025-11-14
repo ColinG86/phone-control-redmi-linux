@@ -142,28 +142,20 @@ class PhoneControlGUI:
             self.root.after(0, lambda: self.log(f"  Device: {cache.get('device_name')}"))
             self.root.after(0, lambda: self.update_status("Connected", "#27ae60"))
 
-            # Launch scrcpy first (WITHOUT --turn-screen-off)
+            # Launch scrcpy with built-in screen-off feature
             self.root.after(0, lambda: self.log("Launching scrcpy window..."))
             self.scrcpy_process = subprocess.Popen([
                 SCRCPY_PATH,
+                "--turn-screen-off",  # Turn off physical screen automatically
                 "--stay-awake",
-                "--power-off-on-close"
+                "--power-off-on-close",
+                "--no-audio"  # Disable audio capture (requires unlocked screen on Android 11)
             ])
 
             # Wait for scrcpy to connect
-            time.sleep(3)
-
-            # Now turn PHYSICAL screen off
-            self.root.after(0, lambda: self.log("Turning physical screen OFF (PC screen stays on)"))
-            subprocess.run([ADB_PATH, "shell", "input", "keyevent", "KEYCODE_POWER"],
-                         capture_output=True)
-            time.sleep(0.5)
-
-            # Start screen monitor
-            self.keep_monitoring = True
-            self.monitor_thread = threading.Thread(target=self.keep_screen_off, daemon=True)
-            self.monitor_thread.start()
-            self.root.after(0, lambda: self.log("Physical screen locked OFF - control via PC"))
+            time.sleep(2)
+            self.root.after(0, lambda: self.log("Physical screen will turn off automatically"))
+            self.root.after(0, lambda: self.log("Control via PC window to avoid phantom touches"))
 
             self.root.after(0, lambda: self.log("✓ scrcpy launched successfully"))
             self.root.after(0, lambda: self.screen_btn.config(state=tk.NORMAL))
