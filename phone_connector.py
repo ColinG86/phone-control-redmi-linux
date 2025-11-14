@@ -216,22 +216,39 @@ class PhoneConnector:
         """Get ARP table with IP -> {mac, type} mapping"""
         arp_table = {}
         try:
-            result = subprocess.run(['arp', '-a'], capture_output=True, text=True)
-            for line in result.stdout.split('\n'):
-                if sys.platform == 'win32':
+            if sys.platform == 'win32':
+                # Windows: use arp -a
+                result = subprocess.run(['arp', '-a'], capture_output=True, text=True)
+                for line in result.stdout.split('\n'):
                     # Windows format: 192.168.0.3      00-11-22-33-44-55     dynamic
                     match = re.search(r'(\d+\.\d+\.\d+\.\d+)\s+([\w-]+)\s+(\w+)', line)
                     if match:
                         ip, mac, arp_type = match.groups()
                         mac = mac.lower().replace('-', ':')
                         arp_table[ip] = {'mac': mac, 'type': arp_type.lower()}
-                else:
-                    # Linux format: ? (192.168.0.3) at aa:bb:cc:dd:ee:ff [ether] on wlan0
-                    match = re.search(r'\((\d+\.\d+\.\d+\.\d+)\)\s+at\s+([\w:]+)\s+\[(\w+)\]', line)
-                    if match:
-                        ip, mac, arp_type = match.groups()
-                        mac = mac.lower()
-                        arp_table[ip] = {'mac': mac, 'type': arp_type.lower()}
+            else:
+                # Linux/macOS: use ip neigh (modern) or fallback to arp -a
+                try:
+                    result = subprocess.run(['ip', 'neigh', 'show'], capture_output=True, text=True)
+                    for line in result.stdout.split('\n'):
+                        # ip neigh format: 192.168.0.5 dev wlan0 lladdr aa:bb:cc:dd:ee:ff REACHABLE
+                        match = re.search(r'(\d+\.\d+\.\d+\.\d+)\s+dev\s+\S+\s+lladdr\s+([\w:]+)\s+(\w+)', line)
+                        if match:
+                            ip, mac, arp_type = match.groups()
+                            mac = mac.lower()
+                            # Map ip neigh states to arp types (REACHABLE/STALE = dynamic, PERMANENT = static)
+                            arp_type = 'dynamic' if arp_type.lower() in ['reachable', 'stale', 'delay', 'probe'] else arp_type.lower()
+                            arp_table[ip] = {'mac': mac, 'type': arp_type}
+                except FileNotFoundError:
+                    # Fallback to arp -a if ip command not available
+                    result = subprocess.run(['arp', '-a'], capture_output=True, text=True)
+                    for line in result.stdout.split('\n'):
+                        # arp format: ? (192.168.0.3) at aa:bb:cc:dd:ee:ff [ether] on wlan0
+                        match = re.search(r'\((\d+\.\d+\.\d+\.\d+)\)\s+at\s+([\w:]+)\s+\[(\w+)\]', line)
+                        if match:
+                            ip, mac, arp_type = match.groups()
+                            mac = mac.lower()
+                            arp_table[ip] = {'mac': mac, 'type': arp_type.lower()}
         except Exception as e:
             logger.error(f"Failed to get ARP table: {e}")
 
